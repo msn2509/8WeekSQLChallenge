@@ -1,5 +1,5 @@
 
-> Comes from the 'Serious SQL' by Danny Ma:
+> Comes from the 'Serious SQL' by Danny Ma: Written in PostgreSQL
 
 We’ve just received an urgent request from the General Manager of Analytics at Health Co requesting our assistance with their analysis of the health.user_logs dataset.
 
