@@ -245,7 +245,70 @@ group by row_nbr, pizza_name
 
 
             
+ -- What is the total quantity of each ingredient used in all delivered pizzas sorted by most frequent first?
+
+with pk_cte as (
+  SELECT
+    row_number() over () as row_nbr,
+    * 
+  from customer_orders
+)
+
+, topping_total as (
+  select 
+    row_nbr
+   , pk.pizza_id
+   ,unnest(string_to_array(toppings,',') ::int[] ) as toppings
+   , 1 as count_top
+  from pk_cte pk
+  left join pizza_recipes r on pk.pizza_id = r.pizza_id
+
+  union all
+
+  select 
+    row_nbr
+    , pizza_id
+    ,unnest(case 
+            when extras is not null and  extras!='null' and extras!='' then string_to_array(extras,',') ::int[]
+            else (array[null])::int[]  end) as extras, 1 as count_top
+  from pk_cte 
             
+union all 
+  
+select 
+  row_nbr
+  , pizza_id
+  ,unnest(case 
+          when exclusions is not null and  exclusions!='null' and exclusions!='' then string_to_array(exclusions,',') ::int[]
+          else (array[null])::int[]  end)  as exclusions, -1 as count_top
+from pk_cte
+)
+
+select 
+  topping_name
+  , sum(count_top) as tot_quantity
+from topping_total tot
+left join pizza_toppings tnames on tot.toppings=tnames.topping_id
+group by topping_name having topping_name is not null
+order by sum(count_top) desc
+         
+
+--Output
+
+--| topping_name | tot_quantity |
+--| ------------ | ------------ |
+--| Bacon        | 14           |
+--| Mushrooms    | 13           |
+--| Chicken      | 11           |
+--| Cheese       | 11           |
+--| Pepperoni    | 10           |
+--| Salami       | 10           |
+--| Beef         | 10           |
+--| BBQ Sauce    | 9            |
+--| Tomato Sauce | 4            |
+--| Onions       | 4            |
+--| Tomatoes     | 4            |
+--| Peppers      | 4            |
 
 
 
