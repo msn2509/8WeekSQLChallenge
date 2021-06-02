@@ -90,6 +90,70 @@ where order_exclusions=1
 
 
 
+-- Generate an order item for each record in the customers_orders table in the format of one of the following:
+--    Meat Lovers
+--    Meat Lovers - Exclude Beef
+--    Meat Lovers - Extra Bacon
+--    Meat Lovers - Exclude Cheese, Bacon - Extra Mushroom, Peppers:
+
+-- Assign a row number as ther is no column uniquely identifying each row in the customer_orders table
+with pk_cte as (
+  SELECT
+    row_number() over () as row_nbr,
+    * 
+  from customer_orders
+)
+
+-- Convert comma separated extras and exclusions into separate rows
+, unnest_cte as (
+  select 
+    row_nbr
+    , pizza_name
+    , unnest(case 
+             when extras is not null and  extras!='null' and extras!='' then string_to_array(extras,',') 
+             else (array[null])::text[]  end) as extras
+    , unnest(case
+              when exclusions is not null and  exclusions!='null' and exclusions!='' then string_to_array(exclusions,',') 
+              else (array[null])::text[]  end) as exclusions 
+  from pk_cte orders
+  left join pizza_names pnames on orders.pizza_id = pnames.pizza_id
+ )
+
+-- Lookup the extras and exclusions id for their actual names. Prepare different concat statements depending on the order 
+select 
+  case 
+    when string_agg(top1.topping_name::text, '') is null and string_agg(top2.topping_name::text, '') is null then string_agg(pizza_name::text, ' ')
+    when string_agg(top1.topping_name::text, '') is not null and string_agg(top2.topping_name::text, '') is null then concat(string_agg(pizza_name::text, ' '),' - Extra ',string_agg(top1.topping_name::text, ','))
+    when string_agg(top1.topping_name::text, '') is null and string_agg(top2.topping_name::text, '') is not null then concat(string_agg(pizza_name::text, ' '),' - Exclude ',string_agg(top2.topping_name::text, ','))
+    when string_agg(top1.topping_name::text, '') is not null and string_agg(top2.topping_name::text, '') is not null then concat(string_agg(pizza_name::text, ' '),' - Extra ',string_agg(top1.topping_name::text, ','), ' - Exclude ',string_agg(top2.topping_name::text, ','))
+  end as order_item
+from unnest_cte u
+left join pizza_toppings top1 on cast(u.extras as int) = top1.topping_id
+left join pizza_toppings top2 on cast(u.exclusions as int) = top2.topping_id
+group by row_nbr
+order by row_nbr;
+                                                                                                                
+
+    
+-- Output
+
+--| order_item                                                               |
+--| ------------------------------------------------------------------------ |
+--| Meatlovers                                                               |
+--| Meatlovers                                                               |
+--| Meatlovers                                                               |
+--| Vegetarian                                                               |
+--| Meatlovers - Exclude Cheese                                              |
+--| Meatlovers - Exclude Cheese                                              |
+--| Vegetarian - Exclude Cheese                                              |
+--| Meatlovers - Extra Bacon                                                 |
+--| Vegetarian                                                               |
+--| Vegetarian - Extra Bacon                                                 |
+--| Meatlovers                                                               |
+--| Meatlovers Meatlovers - Extra Bacon,Chicken - Exclude Cheese             |
+--| Meatlovers                                                               |
+--| Meatlovers Meatlovers - Extra Bacon,Cheese - Exclude BBQ Sauce,Mushrooms |
+
 
 
 
